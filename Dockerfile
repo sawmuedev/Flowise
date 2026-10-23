@@ -4,7 +4,7 @@
 # Run image
 # docker run -d -p 3000:3000 flowise
 
-FROM node:24-alpine
+FROM node:24.22.1-alpine
 
 # Install system dependencies and build tools
 RUN apk update && \
