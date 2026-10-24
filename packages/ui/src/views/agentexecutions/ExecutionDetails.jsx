@@ -49,6 +49,9 @@ import executionsApi from '@/api/executions'
 // Hooks
 import useApi from '@/hooks/useApi'
 
+// RBAC
+import { Available } from '@/ui-component/rbac/available'
+
 const getIconColor = (status) => {
     switch (status) {
         case 'FINISHED':
@@ -725,7 +728,8 @@ export const ExecutionDetails = ({ open, isPublic, execution, metadata, onClose,
                     flex: '1 1 35%',
                     padding: 2,
                     borderRight: 1,
-                    borderColor: 'divider'
+                    borderColor: 'divider',
+                    overflow: 'auto'
                 }}
             >
                 <Box
@@ -767,21 +771,23 @@ export const ExecutionDetails = ({ open, isPublic, execution, metadata, onClose,
                         )}
 
                         {!isPublic && !localMetadata.isPublic && (
-                            <Chip
-                                sx={{ ml: 1, pl: 1 }}
-                                icon={
-                                    updateExecutionApi.loading ? (
-                                        <IconLoader size={15} className='spin-animation' />
-                                    ) : (
-                                        <IconShare size={15} />
-                                    )
-                                }
-                                variant='outlined'
-                                label={updateExecutionApi.loading ? 'Updating...' : 'Share'}
-                                className={'button'}
-                                onClick={() => onSharePublicly()}
-                                disabled={updateExecutionApi.loading}
-                            />
+                            <Available permission='executions:update'>
+                                <Chip
+                                    sx={{ ml: 1, pl: 1 }}
+                                    icon={
+                                        updateExecutionApi.loading ? (
+                                            <IconLoader size={15} className='spin-animation' />
+                                        ) : (
+                                            <IconShare size={15} />
+                                        )
+                                    }
+                                    variant='outlined'
+                                    label={updateExecutionApi.loading ? 'Updating...' : 'Share'}
+                                    className={'button'}
+                                    onClick={() => onSharePublicly()}
+                                    disabled={updateExecutionApi.loading}
+                                />
+                            </Available>
                         )}
 
                         {!isPublic && localMetadata.isPublic && (

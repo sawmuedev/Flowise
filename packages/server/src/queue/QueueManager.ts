@@ -1,6 +1,7 @@
 import { BaseQueue } from './BaseQueue'
 import { PredictionQueue } from './PredictionQueue'
 import { UpsertQueue } from './UpsertQueue'
+import { ScheduleQueue } from './ScheduleQueue'
 import { IComponentNodes } from '../Interface'
 import { Telemetry } from '../utils/telemetry'
 import { CachePool } from '../CachePool'
@@ -12,11 +13,11 @@ import { BullMQAdapter } from '@bull-board/api/bullMQAdapter'
 import { Express } from 'express'
 import { UsageCacheManager } from '../UsageCacheManager'
 import { ExpressAdapter } from '@bull-board/express'
-import logger from '../utils/logger'
+import { IdentityManager } from '../IdentityManager'
 
 const QUEUE_NAME = process.env.QUEUE_NAME || 'flowise-queue'
 
-type QUEUE_TYPE = 'prediction' | 'upsert'
+type QUEUE_TYPE = 'prediction' | 'upsert' | 'schedule'
 
 export class QueueManager {
     private static instance: QueueManager
@@ -48,9 +49,6 @@ export class QueueManager {
                         ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
                         : undefined
             }
-            logger.info(
-                `[QueueManager] Connecting to Redis using URL: ${process.env.REDIS_URL.replace(/\/\/[^:]+:[^@]+@/, '//[CREDENTIALS]@')}`
-            )
         } else {
             let tlsOpts = undefined
             if (process.env.REDIS_TLS === 'true') {
@@ -72,11 +70,6 @@ export class QueueManager {
                         ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
                         : undefined
             }
-            logger.info(
-                `[QueueManager] Connecting to Redis using host:port: ${process.env.REDIS_HOST || 'localhost'}:${
-                    process.env.REDIS_PORT || '6379'
-                }`
-            )
         }
     }
 
@@ -128,6 +121,7 @@ export class QueueManager {
         appDataSource,
         abortControllerPool,
         usageCacheManager,
+        identityManager,
         serverAdapter
     }: {
         componentNodes: IComponentNodes
@@ -136,6 +130,7 @@ export class QueueManager {
         appDataSource: DataSource
         abortControllerPool: AbortControllerPool
         usageCacheManager: UsageCacheManager
+        identityManager: IdentityManager
         serverAdapter?: ExpressAdapter
     }) {
         const predictionQueueName = `${QUEUE_NAME}-prediction`
@@ -148,15 +143,6 @@ export class QueueManager {
             usageCacheManager
         })
         this.registerQueue('prediction', predictionQueue)
-
-        // Add connection event logging for prediction queue
-        if (predictionQueue.getQueue().opts.connection) {
-            const connInfo = predictionQueue.getQueue().opts.connection || {}
-            const connInfoString = JSON.stringify(connInfo)
-                .replace(/"username":"[^"]*"/g, '"username":"[REDACTED]"')
-                .replace(/"password":"[^"]*"/g, '"password":"[REDACTED]"')
-            logger.info(`[QueueManager] Prediction queue connected to Redis: ${connInfoString}`)
-        }
 
         this.predictionQueueEventsProducer = new QueueEventsProducer(predictionQueue.getQueueName(), {
             connection: this.connection
@@ -172,18 +158,24 @@ export class QueueManager {
         })
         this.registerQueue('upsert', upsertionQueue)
 
-        // Add connection event logging for upsert queue
-        if (upsertionQueue.getQueue().opts.connection) {
-            const connInfo = upsertionQueue.getQueue().opts.connection || {}
-            const connInfoString = JSON.stringify(connInfo)
-                .replace(/"username":"[^"]*"/g, '"username":"[REDACTED]"')
-                .replace(/"password":"[^"]*"/g, '"password":"[REDACTED]"')
-            logger.info(`[QueueManager] Upsert queue connected to Redis: ${connInfoString}`)
-        }
+        const scheduleQueueName = `${QUEUE_NAME}-schedule`
+        const scheduleQueue = new ScheduleQueue(scheduleQueueName, this.connection, {
+            componentNodes,
+            telemetry,
+            cachePool,
+            appDataSource,
+            usageCacheManager,
+            identityManager
+        })
+        this.registerQueue('schedule', scheduleQueue)
 
         if (serverAdapter) {
             createBullBoard({
-                queues: [new BullMQAdapter(predictionQueue.getQueue()), new BullMQAdapter(upsertionQueue.getQueue())],
+                queues: [
+                    new BullMQAdapter(predictionQueue.getQueue()),
+                    new BullMQAdapter(upsertionQueue.getQueue()),
+                    new BullMQAdapter(scheduleQueue.getQueue())
+                ],
                 serverAdapter: serverAdapter
             })
             this.bullBoardRouter = serverAdapter.getRouter()

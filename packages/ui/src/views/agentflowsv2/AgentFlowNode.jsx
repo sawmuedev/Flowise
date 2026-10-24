@@ -24,7 +24,13 @@ import {
     IconAlertCircleFilled,
     IconCode,
     IconWorldWww,
-    IconPhoto
+    IconPhoto,
+    IconBrandGoogle,
+    IconBrowserCheck,
+    IconMessageCircle,
+    IconClockHour4,
+    IconListDetails,
+    IconWebhook
 } from '@tabler/icons-react'
 import StopCircleIcon from '@mui/icons-material/StopCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
@@ -142,6 +148,30 @@ const AgentFlowNode = ({ data }) => {
         }
     }
 
+    const getBuiltInGeminiToolIcon = (toolName) => {
+        switch (toolName) {
+            case 'urlContext':
+                return <IconWorldWww size={14} color={'white'} />
+            case 'googleSearch':
+                return <IconBrandGoogle size={14} color={'white'} />
+            case 'codeExecution':
+                return <IconCode size={14} color={'white'} />
+            default:
+                return null
+        }
+    }
+
+    const getBuiltInAnthropicToolIcon = (toolName) => {
+        switch (toolName) {
+            case 'web_search_20250305':
+                return <IconWorldWww size={14} color={'white'} />
+            case 'web_fetch_20250910':
+                return <IconBrowserCheck size={14} color={'white'} />
+            default:
+                return null
+        }
+    }
+
     useEffect(() => {
         if (ref.current) {
             setTimeout(() => {
@@ -167,6 +197,8 @@ const AgentFlowNode = ({ data }) => {
                     componentNode?.deprecateMessage ??
                         'This node will be deprecated in the next release. Change to a new node tagged with NEW'
                 )
+            } else if (componentNode.warning) {
+                setWarningMessage(componentNode.warning)
             } else {
                 setWarningMessage('')
             }
@@ -370,6 +402,41 @@ const AgentFlowNode = ({ data }) => {
                                 {data.label}
                             </Typography>
 
+                            {/* Render the icon for "Start" node to help users determine it's started by user's input or schedule */}
+                            {data.name === 'startAgentflow' &&
+                                data.inputs?.startInputType &&
+                                (() => {
+                                    const inputType = data.inputs.startInputType
+                                    const iconMap = {
+                                        chatInput: { icon: <IconMessageCircle size={14} /> },
+                                        formInput: { icon: <IconListDetails size={14} /> },
+                                        scheduleInput: { icon: <IconClockHour4 size={14} /> },
+                                        webhookTrigger: { icon: <IconWebhook size={14} /> }
+                                    }
+                                    const info = iconMap[inputType]
+                                    if (!info) return null
+                                    return (
+                                        <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, alignItems: 'center' }}>
+                                            <Box
+                                                sx={{
+                                                    backgroundColor: customization.isDarkMode
+                                                        ? 'rgba(255, 255, 255, 0.2)'
+                                                        : 'rgba(255, 255, 255, 0.9)',
+                                                    borderRadius: '16px',
+                                                    height: 22,
+                                                    px: 0.9,
+                                                    display: 'flex',
+                                                    justifyContent: 'center',
+                                                    alignItems: 'center',
+                                                    gap: 0.5
+                                                }}
+                                            >
+                                                {info.icon}
+                                            </Box>
+                                        </Box>
+                                    )
+                                })()}
+
                             {(() => {
                                 // Array of model configs to check and render
                                 const modelConfigs = [
@@ -404,7 +471,9 @@ const AgentFlowNode = ({ data }) => {
                                                     alt={item.model}
                                                 />
                                                 <Typography sx={{ fontSize: '0.7rem', ml: 0.5 }}>
-                                                    {item.config.modelName || item.config.model}
+                                                    {item.config.customModel
+                                                        ? item.config.customModel.replace(/^arn:aws:bedrock:[^:]+:[^:]+:/, '')
+                                                        : item.config.modelName || item.config.model}
                                                 </Typography>
                                             </Box>
                                         </Box>
@@ -433,6 +502,26 @@ const AgentFlowNode = ({ data }) => {
                                             : [],
                                         toolProperty: 'builtInTool',
                                         isBuiltInOpenAI: true
+                                    },
+                                    {
+                                        tools: data.inputs?.agentToolsBuiltInGemini
+                                            ? (typeof data.inputs.agentToolsBuiltInGemini === 'string'
+                                                  ? JSON.parse(data.inputs.agentToolsBuiltInGemini)
+                                                  : data.inputs.agentToolsBuiltInGemini
+                                              ).map((tool) => ({ builtInTool: tool }))
+                                            : [],
+                                        toolProperty: 'builtInTool',
+                                        isBuiltInGemini: true
+                                    },
+                                    {
+                                        tools: data.inputs?.agentToolsBuiltInAnthropic
+                                            ? (typeof data.inputs.agentToolsBuiltInAnthropic === 'string'
+                                                  ? JSON.parse(data.inputs.agentToolsBuiltInAnthropic)
+                                                  : data.inputs.agentToolsBuiltInAnthropic
+                                              ).map((tool) => ({ builtInTool: tool }))
+                                            : [],
+                                        toolProperty: 'builtInTool',
+                                        isBuiltInAnthropic: true
                                     }
                                 ]
 
@@ -470,6 +559,58 @@ const AgentFlowNode = ({ data }) => {
                                                     // Handle built-in OpenAI tools with icons
                                                     if (config.isBuiltInOpenAI) {
                                                         const icon = getBuiltInOpenAIToolIcon(toolName)
+                                                        if (!icon) return []
+
+                                                        return [
+                                                            <Box
+                                                                key={`tool-${configIndex}-${toolIndex}`}
+                                                                sx={{
+                                                                    width: 20,
+                                                                    height: 20,
+                                                                    borderRadius: '50%',
+                                                                    backgroundColor: customization.isDarkMode
+                                                                        ? darken(data.color, 0.5)
+                                                                        : darken(data.color, 0.2),
+                                                                    display: 'flex',
+                                                                    justifyContent: 'center',
+                                                                    alignItems: 'center',
+                                                                    padding: 0.2
+                                                                }}
+                                                            >
+                                                                {icon}
+                                                            </Box>
+                                                        ]
+                                                    }
+
+                                                    // Handle built-in Gemini tools with icons
+                                                    if (config.isBuiltInGemini) {
+                                                        const icon = getBuiltInGeminiToolIcon(toolName)
+                                                        if (!icon) return []
+
+                                                        return [
+                                                            <Box
+                                                                key={`tool-${configIndex}-${toolIndex}`}
+                                                                sx={{
+                                                                    width: 20,
+                                                                    height: 20,
+                                                                    borderRadius: '50%',
+                                                                    backgroundColor: customization.isDarkMode
+                                                                        ? darken(data.color, 0.5)
+                                                                        : darken(data.color, 0.2),
+                                                                    display: 'flex',
+                                                                    justifyContent: 'center',
+                                                                    alignItems: 'center',
+                                                                    padding: 0.2
+                                                                }}
+                                                            >
+                                                                {icon}
+                                                            </Box>
+                                                        ]
+                                                    }
+
+                                                    // Handle built-in Anthropic tools with icons
+                                                    if (config.isBuiltInAnthropic) {
+                                                        const icon = getBuiltInAnthropicToolIcon(toolName)
                                                         if (!icon) return []
 
                                                         return [

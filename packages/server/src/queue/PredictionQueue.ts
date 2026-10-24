@@ -63,6 +63,9 @@ export class PredictionQueue extends BaseQueue {
     }
 
     async processJob(data: IExecuteFlowParams | IGenerateAgentflowv2Params) {
+        if (this.redisPublisher) {
+            await this.redisPublisher.connect()
+        }
         if (this.appDataSource) data.appDataSource = this.appDataSource
         if (this.telemetry) data.telemetry = this.telemetry
         if (this.cachePool) data.cachePool = this.cachePool
@@ -89,7 +92,8 @@ export class PredictionQueue extends BaseQueue {
                 componentNodes: this.componentNodes,
                 data: executeCustomFunctionData.data,
                 workspaceId: executeCustomFunctionData.workspaceId,
-                orgId: executeCustomFunctionData.orgId
+                orgId: executeCustomFunctionData.orgId,
+                canViewVariables: executeCustomFunctionData.canViewVariables
             })
         }
 
@@ -98,13 +102,6 @@ export class PredictionQueue extends BaseQueue {
             const signal = new AbortController()
             this.abortControllerPool.add(abortControllerId, signal)
             data.signal = signal
-        }
-
-        if (this.redisPublisher) {
-            logger.info(
-                `[PredictionQueue] RedisPublisher is connected [orgId:${data.orgId}/flowId:${data.chatflow.id}/chatId:${data.chatId}]`,
-                this.redisPublisher.isConnected()
-            )
         }
 
         return await executeFlow(data)
