@@ -62,7 +62,6 @@
     },
     "pnpm": {
         "onlyBuiltDependencies": [
-            "faiss-node",
             "sqlite3"
         ],
         "overrides": {

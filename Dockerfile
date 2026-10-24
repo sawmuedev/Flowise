@@ -4,8 +4,8 @@
 # Run image
 # docker run -d -p 3000:3000 flowise
 
-FROM node:20-alpine
-RUN apk add --update libc6-compat python3 make g++
+FROM node:22.23.4-alpine
+RUN apk add --update libc6-compat python3 py3-setuptools make g++
 # needed for pdfjs-dist
 RUN apk add --no-cache build-base cairo-dev pango-dev
 
@@ -17,7 +17,7 @@ RUN apk add --no-cache chromium
 RUN apk add --no-cache curl
 
 #install PNPM globaly
-RUN npm install -g pnpm@10.34.5
+RUN npm install -g pnpm@9.15.9
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
@@ -32,6 +32,9 @@ COPY . .
 RUN pnpm install
 
 RUN pnpm build
+
+# Laufzeit: kleinerer Heap, sonst OOM im 512-MB-Plan (der grosse Heap ist nur fuer den Build noetig)
+ENV NODE_OPTIONS=--max-old-space-size=384
 
 EXPOSE 3000
 
